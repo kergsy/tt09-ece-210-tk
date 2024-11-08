@@ -49,7 +49,8 @@ pinout:
   uio[3]: "Coupling strength bit 3"
   uio[4]: "Coupling strength bit 4"
   uio[5]: "Coupling strength bit 5"
-  uio[6]: "Coupling strength bit 6"uio[7]: "Coupling strength bit 7 (MSB)"
+  uio[6]: "Coupling strength bit 6"
+  uio[7]: "Coupling strength bit 7 (MSB)"
 
 # Do not change!
 yaml_version: 6
