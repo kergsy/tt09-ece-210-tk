@@ -20,37 +20,32 @@ module tt_um_lif_tk (
   wire [2:0] pattern_select = ui_in[2:0];
   wire [4:0] base_current_scale = ui_in[7:3];
   
+  // Use uio_in directly for coupling strength
+  wire [7:0] coupling_strength = uio_in;
+  
   // Pattern-specific parameters
   reg [7:0] external_input;
-  reg [7:0] coupling_strength;
-  wire [7:0] coupling_currents [7:0];
 
   // Pattern parameter selection
   always @(*) begin
       case (pattern_select)
           3'b000: begin // Independent firing
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd0;
           end
           3'b001: begin // Wave propagation
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd50;
           end
           3'b010: begin // Synchronous firing
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd80;
           end
           3'b011: begin // Clustered firing
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd40;
           end
           3'b100: begin // Burst mode
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd100;
           end
           default: begin
               external_input = {base_current_scale, 3'b000};
-              coupling_strength = 8'd30;
           end
       endcase
   end
@@ -58,6 +53,7 @@ module tt_um_lif_tk (
   // Internal signals
   wire [7:0] spikes;
   wire [7:0] states [7:0];
+  wire [7:0] coupling_currents [7:0];
 
   // Calculate coupling currents based on pattern
   genvar j;
@@ -101,7 +97,6 @@ module tt_um_lif_tk (
   // Output assignments
   assign uo_out = spikes;
   assign uio_out = states[0];
-  assign uio_oe = 8'hFF;
+  assign uio_oe = 8'hFF;  // Set all bidirectional pins as outputs
 
 endmodule
-
