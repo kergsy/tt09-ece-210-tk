@@ -5,13 +5,6 @@
 
 `default_nettype none
 
-/*
- * Copyright (c) 2024 Taylor Kergan
- * SPDX-License-Identifier: Apache-2.0
- */
-
-`default_nettype none
-
 module tt_um_lif_tk (
     input  wire [7:0] ui_in,    // Inputs [2:0] pattern_select, [7:3] base_current
     input  wire [7:0] uio_in,   // IOs: Coupling strength
@@ -53,19 +46,19 @@ module tt_um_lif_tk (
     end
 
     // Internal signals
-    wire [7:0] spikes;
-    wire [7:0] states [7:0];
-    reg  [7:0] coupling_currents [7:0];
+    wire [3:0] spikes;  // Adjusted to 4 bits for 4 neurons
+    wire [7:0] states [3:0];  // Adjusted to 4 neurons
+    reg  [7:0] coupling_currents [3:0];  // Adjusted to 4 neurons
 
     // Calculate coupling currents based on pattern with registered logic
     genvar j;
     generate
-        for (j = 0; j < 8; j = j + 1) begin : coupling_calc
-            reg [7:0] spike_history;
+        for (j = 0; j < 4; j = j + 1) begin : coupling_calc  // Adjusted loop to 4 iterations
+            reg [3:0] spike_history;  // Adjusted to 4 bits for 4 neurons
             
             always @(posedge clk or negedge rst_n) begin
                 if (!rst_n) begin
-                    spike_history <= 8'b0;
+                    spike_history <= 4'b0;
                     coupling_currents[j] <= 8'b0;
                 end else begin
                     // Register spike history
@@ -74,7 +67,7 @@ module tt_um_lif_tk (
                     // Registered coupling current calculation
                     case (pattern_select_reg)
                         3'b001: begin // Wave
-                            coupling_currents[j] <= spike_history[(j+7) % 8] ? 
+                            coupling_currents[j] <= spike_history[(j+3) % 4] ? 
                                                   coupling_strength_reg : 8'd0;
                         end
                         3'b010: begin // Synchronous
@@ -82,12 +75,12 @@ module tt_um_lif_tk (
                                                   coupling_strength_reg : 8'd0;
                         end
                         3'b011: begin // Clustered
-                            coupling_currents[j] <= spike_history[(j+4) % 8] ? 
+                            coupling_currents[j] <= spike_history[(j+2) % 4] ? 
                                                   coupling_strength_reg : 8'd0;
                         end
                         3'b100: begin // Burst
-                            coupling_currents[j] <= (spike_history[(j+7) % 8] || 
-                                                   spike_history[(j+1) % 8]) ? 
+                            coupling_currents[j] <= (spike_history[(j+3) % 4] || 
+                                                   spike_history[(j+1) % 4]) ? 
                                                   coupling_strength_reg : 8'd0;
                         end
                         default: begin
@@ -103,10 +96,10 @@ module tt_um_lif_tk (
     wire gated_clk;
     assign gated_clk = clk & ena;
 
-    // Instantiate ring of 8 LIF neurons
+    // Instantiate ring of 4 LIF neurons
     genvar i;
     generate
-        for (i = 0; i < 8; i = i + 1) begin : neurons
+        for (i = 0; i < 4; i = i + 1) begin : neurons  // Adjusted loop to 4 iterations
             lif neuron (
                 .clk(gated_clk),
                 .reset_n(rst_n),
@@ -119,7 +112,7 @@ module tt_um_lif_tk (
     endgenerate
 
     // Output assignments
-    assign uo_out = spikes;
+    assign uo_out = {4'b0, spikes};  // Adjusted to fit 4 spikes into 8 bits
     assign uio_out = states[0];
     assign uio_oe = 8'hFF;  // Set all bidirectional pins as outputs
 

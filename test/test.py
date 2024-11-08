@@ -32,14 +32,14 @@ async def monitor_spikes(dut, duration, pattern_name):
   
   for _ in range(duration):
       await RisingEdge(dut.clk)
-      spikes = dut.uo_out.value.integer
+      spikes = dut.uo_out.value.integer & 0xF  # Only consider the lower 4 bits
       if spikes != last_spikes:
           transitions += 1
           if spikes != 0:
               new_spikes = bin(spikes).count('1')
               spike_count += new_spikes
               dut._log.info(f"Time {get_sim_time('ns'):>5}ns - {pattern_name} - "
-                          f"Spikes: {format(spikes, '08b')} (Count: {spike_count})")
+                            f"Spikes: {format(spikes, '04b')} (Count: {spike_count})")
       last_spikes = spikes
   
   return spike_count, transitions
