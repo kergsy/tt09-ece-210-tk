@@ -17,7 +17,7 @@ module lif (
     // Registered inputs
     reg [7:0] current_reg;
     reg [7:0] external_input_reg;
-    
+
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
             current_reg <= 8'd0;
