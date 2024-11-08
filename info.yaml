@@ -1,9 +1,9 @@
 # Tiny Tapeout project information
 project:
-  title:        "LIF on a Ring Topology"      # Project title
+  title:        "2 LIF Neurons"      # Project title
   author:       "Taylor Kergan"      # Your name
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description:  "LIF neurons connected in a ring that displays different firing patterns." # One line description of what your project does
+  description:  "2 LIF neurons connected together that may exhibit 3 different firing patterns." # One line description of what your project does
   language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz:     0       # Clock frequency in Hz (or 0 if not applicable)
 
