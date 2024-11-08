@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+`default_nettype none
+
 module tt_um_lif_tk (
   input  wire [7:0] ui_in,    // Inputs [2:0] pattern_select, [7:3] base_current
   input  wire [7:0] uio_in,   // IOs: Coupling strength
