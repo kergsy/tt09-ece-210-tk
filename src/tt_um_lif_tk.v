@@ -1,19 +1,14 @@
-/*
- * Copyright (c) 2024 Taylor Kergan
- * SPDX-License-Identifier: Apache-2.0
- */
-
 `default_nettype none
 
 module tt_um_lif_tk (
-    input  wire [7:0] ui_in,    // Inputs [2:0] pattern_select, [7:3] base_current
+    input  wire [7:0] ui_in,    // Inputs: [2:0] pattern_select, [7:3] base_current
     input  wire [7:0] uio_in,   // IOs: Coupling strength
     output wire [7:0] uo_out,   // Outputs: Spikes
     output wire [7:0] uio_out,  // IOs: First neuron state
     output wire [7:0] uio_oe,   // IOs: Enable path
-    input  wire       ena,      
-    input  wire       clk,      
-    input  wire       rst_n     
+    input  wire       ena,
+    input  wire       clk,
+    input  wire       rst_n
 );
 
     // Registered inputs
@@ -33,60 +28,79 @@ module tt_um_lif_tk (
         end
     end
 
-    // Pattern-specific parameters
+    // External input calculation with added pipeline stage
     reg [7:0] external_input_reg;
+    reg [7:0] external_input_reg_d1; // Delayed version
 
-    // Registered pattern parameter selection
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             external_input_reg <= 8'b0;
+            external_input_reg_d1 <= 8'b0;
         end else begin
             external_input_reg <= {base_current_scale_reg, 3'b000};
+            external_input_reg_d1 <= external_input_reg;
         end
     end
 
     // Internal signals
-    wire [3:0] spikes;  // Adjusted to 4 bits for 4 neurons
-    wire [7:0] states [3:0];  // Adjusted to 4 neurons
-    reg  [7:0] coupling_currents [3:0];  // Adjusted to 4 neurons
+    wire [3:0] spikes;               // Spikes from each neuron
+    wire [7:0] states [0:3];         // States of each neuron
+    reg  [7:0] coupling_currents [0:3]; // Coupling currents for each neuron
 
-    // Calculate coupling currents based on pattern with registered logic
+    // Spike history registers with added delay stages
+    reg [3:0] spike_history_d1;
+    reg [3:0] spike_history_d2;
+    reg [3:0] spike_history_d3; // Additional pipeline stage
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            spike_history_d1 <= 4'b0;
+            spike_history_d2 <= 4'b0;
+            spike_history_d3 <= 4'b0;
+        end else begin
+            spike_history_d1 <= spikes;
+            spike_history_d2 <= spike_history_d1;
+            spike_history_d3 <= spike_history_d2;
+        end
+    end
+
+    // Calculate coupling currents based on pattern using delayed spike history
     genvar j;
     generate
-        for (j = 0; j < 4; j = j + 1) begin : coupling_calc  // Adjusted loop to 4 iterations
-            reg [3:0] spike_history;  // Adjusted to 4 bits for 4 neurons
-            
+        for (j = 0; j < 4; j = j + 1) begin : coupling_calc
+            // Local parameters for index calculations
+            localparam integer idx_minus1 = (j + 3) % 4; // Equivalent to (j - 1) mod 4
+            localparam integer idx_minus2 = (j + 2) % 4; // Equivalent to (j - 2) mod 4
+            localparam integer idx_plus1  = (j + 1) % 4; // Equivalent to (j + 1) mod 4
+
+            reg [7:0] coupling_current_temp;
+
             always @(posedge clk or negedge rst_n) begin
                 if (!rst_n) begin
-                    spike_history <= 4'b0;
-                    coupling_currents[j] <= 8'b0;
+                    coupling_current_temp <= 8'd0;
+                    coupling_currents[j] <= 8'd0;
                 end else begin
-                    // Register spike history
-                    spike_history <= spikes;
-                    
-                    // Registered coupling current calculation
+                    // Calculate coupling current based on the selected pattern using delayed spike history
                     case (pattern_select_reg)
-                        3'b001: begin // Wave
-                            coupling_currents[j] <= spike_history[(j+3) % 4] ? 
-                                                  coupling_strength_reg : 8'd0;
+                        3'b001: begin // Wave pattern
+                            coupling_current_temp <= spike_history_d3[idx_minus1] ? coupling_strength_reg : 8'd0;
                         end
-                        3'b010: begin // Synchronous
-                            coupling_currents[j] <= (|spike_history) ? 
-                                                  coupling_strength_reg : 8'd0;
+                        3'b010: begin // Synchronous pattern
+                            coupling_current_temp <= (|spike_history_d3) ? coupling_strength_reg : 8'd0;
                         end
-                        3'b011: begin // Clustered
-                            coupling_currents[j] <= spike_history[(j+2) % 4] ? 
-                                                  coupling_strength_reg : 8'd0;
+                        3'b011: begin // Clustered pattern
+                            coupling_current_temp <= spike_history_d3[idx_minus2] ? coupling_strength_reg : 8'd0;
                         end
-                        3'b100: begin // Burst
-                            coupling_currents[j] <= (spike_history[(j+3) % 4] || 
-                                                   spike_history[(j+1) % 4]) ? 
+                        3'b100: begin // Burst pattern
+                            coupling_current_temp <= (spike_history_d3[idx_minus1] || spike_history_d3[idx_plus1]) ? 
                                                   coupling_strength_reg : 8'd0;
                         end
                         default: begin
-                            coupling_currents[j] <= 8'd0;
+                            coupling_current_temp <= 8'd0;
                         end
                     endcase
+                    // Register the coupling current to introduce delay
+                    coupling_currents[j] <= coupling_current_temp;
                 end
             end
         end
@@ -99,12 +113,12 @@ module tt_um_lif_tk (
     // Instantiate ring of 4 LIF neurons
     genvar i;
     generate
-        for (i = 0; i < 4; i = i + 1) begin : neurons  // Adjusted loop to 4 iterations
+        for (i = 0; i < 4; i = i + 1) begin : neurons
             lif neuron (
                 .clk(gated_clk),
                 .reset_n(rst_n),
                 .current(coupling_currents[i]),
-                .external_input(external_input_reg + i),
+                .external_input(external_input_reg_d1 + i), // Use delayed external input
                 .state(states[i]),
                 .spike(spikes[i])
             );
@@ -112,8 +126,8 @@ module tt_um_lif_tk (
     endgenerate
 
     // Output assignments
-    assign uo_out = {4'b0, spikes};  // Adjusted to fit 4 spikes into 8 bits
-    assign uio_out = states[0];
-    assign uio_oe = 8'hFF;  // Set all bidirectional pins as outputs
+    assign uo_out = {4'b0, spikes};  // Output the spikes from neurons
+    assign uio_out = states[0];      // Output the state of the first neuron
+    assign uio_oe = 8'hFF;           // Enable all bidirectional pins as outputs
 
 endmodule

@@ -6,7 +6,7 @@ module lif (
     input  wire       clk,
     input  wire       reset_n,
     output reg  [7:0] state,
-    output wire       spike
+    output reg        spike
 );
 
     // Fixed parameters
@@ -32,22 +32,22 @@ module lif (
     reg [3:0] refractory_counter;
     reg [7:0] next_state_reg;
 
-    assign spike = (state >= THRESHOLD) && !refractory;
-
-    // Pipeline the state calculation
+    // Pipeline the state calculation with additional stage for adder_result
     reg [7:0] total_input_reg;
     reg [7:0] leak_amount_reg;
+    reg [7:0] adder_result;
 
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
             total_input_reg <= 8'd0;
             leak_amount_reg <= 8'd0;
+            adder_result <= 8'd0;
             next_state_reg <= 8'd0;
         end else begin
             total_input_reg <= current_reg + external_input_reg;
             leak_amount_reg <= (state > DECAY) ? DECAY : state;
-            next_state_reg <= (!refractory && state < THRESHOLD) ? 
-                            (state + total_input_reg - leak_amount_reg) : 8'd0;
+            adder_result <= state + total_input_reg;
+            next_state_reg <= (!refractory && state < THRESHOLD) ? (adder_result - leak_amount_reg) : 8'd0;
         end
     end
 
@@ -56,6 +56,7 @@ module lif (
             state <= 8'd0;
             refractory <= 1'b0;
             refractory_counter <= 4'd0;
+            spike <= 1'b0; // Initialize spike to 0
         end else begin
             if (refractory) begin
                 refractory_counter <= refractory_counter + 1;
@@ -63,11 +64,15 @@ module lif (
                     refractory <= 1'b0;
                     refractory_counter <= 4'd0;
                 end
+                spike <= 1'b0; // No spike during refractory
             end else begin
                 state <= next_state_reg;
-                if (spike) begin
+                if (state >= THRESHOLD) begin
                     state <= 8'd0;
                     refractory <= 1'b1;
+                    spike <= 1'b1; // Register the spike
+                end else begin
+                    spike <= 1'b0; // No spike if threshold not reached
                 end
             end
         end
